@@ -1,0 +1,105 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const nodemailer = require('nodemailer');
+const path = require('path');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Simple in-memory store for pledges
+const pledges = [];
+
+// Nodemailer transporter setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER, // your email
+    pass: process.env.EMAIL_PASS, // your email password or app password
+  },
+});
+
+// API to receive pledges
+app.post('/api/pledge', (req, res) => {
+  const { name, email, reason, visibility, pledgeOptions } = req.body;
+
+  if (!name || !email || !reason || !visibility || !pledgeOptions || pledgeOptions.length === 0) {
+    return res.status(400).json({ error: 'Please fill in all required fields and select pledge options.' });
+  }
+
+  // Check if email already used
+  if (pledges.find(p => p.email.toLowerCase() === email.toLowerCase())) {
+    return res.status(400).json({ error: 'You have already made a pledge with this email.' });
+  }
+
+  const pledgeNumber = pledges.length + 1;
+  const newPledge = { name, email, reason, visibility, pledgeOptions, pledgeNumber, timestamp: new Date() };
+  pledges.push(newPledge);
+
+  // Send confirmation email to pledger
+  const userMailOptions = {
+    from: `"Uganda No Drug Campaign" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: 'Thank You for Taking a Stand Against Drugs 💪',
+    text: `Dear ${name},
+
+Thank you for making a powerful pledge to say NO to drugs and stand up for a safer, healthier community.
+
+Your commitment is more than just words — it’s a step toward real change. By pledging to live drug-free and encourage others to do the same, you are helping to build a stronger, more supportive environment for everyone around you.
+
+Together, we are sending a clear message: Our community chooses health, safety, and a brighter future.
+
+You are pledge number ${pledgeNumber}.
+
+Stay strong, stay committed — and know that you are not alone in this mission.
+
+With gratitude,
+The Uganda no drug campaign
+[Your campaign website here]
+`
+  };
+
+  // Send notification email to admin
+  const adminMailOptions = {
+    from: `"Uganda No Drug Campaign" <${process.env.EMAIL_USER}>`,
+    to: process.env.EMAIL_USER,
+    subject: `New Pledge #${pledgeNumber} from ${name}`,
+    text: `New pledge details:
+
+Name: ${name}
+Email: ${email}
+Reason: ${reason}
+Visibility: ${visibility}
+Pledge Options: ${pledgeOptions.join(', ')}
+
+Pledge Number: ${pledgeNumber}
+`
+  };
+
+  transporter.sendMail(userMailOptions, (err) => {
+    if (err) {
+      console.error('Error sending confirmation email to user:', err);
+      return res.status(500).json({ error: 'Error sending confirmation email.' });
+    }
+    transporter.sendMail(adminMailOptions, (err2) => {
+      if (err2) {
+        console.error('Error sending notification email to admin:', err2);
+        return res.status(500).json({ error: 'Error sending admin notification email.' });
+      }
+      res.json({ message: 'Pledge submitted successfully', pledgeNumber });
+    });
+  });
+});
+
+// API to get pledges (for frontend display)
+app.get('/api/pledges', (req, res) => {
+  res.json(pledges);
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
