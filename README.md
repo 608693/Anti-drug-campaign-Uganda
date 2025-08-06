@@ -1,2 +1,2 @@
-# Anti-drug-campaign-Uganda
-An organized effort to raise awareness about the dangers of drug abuse, discourage substance use, and promote healthy, drug-free lifestyle
+# Anti-Drug Campaign Uganda
+This is a full-stack pledge campaign project built with Node.js and Express.
